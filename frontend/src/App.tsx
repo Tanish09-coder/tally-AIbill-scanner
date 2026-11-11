@@ -3,10 +3,9 @@ import { Navbar } from './components/common/Navbar';
 import { StatCards } from './components/dashboard/StatCards';
 import { UploadSection } from './components/upload/UploadSection';
 import { BillList } from './components/bills/BillList';
-import { ClarificationModal } from './components/clarification/ClarificationModal';
 import { VoucherPreviewModal } from './components/voucher/VoucherPreviewModal';
 import { api } from './services/api';
-import { Bill, DashboardStats, TallyStatus, ClarificationQuestion, VoucherPreview, TallyMastersData } from './types';
+import { Bill, DashboardStats, TallyStatus, VoucherPreview, TallyMastersData } from './types';
 import { CheckCircle, AlertTriangle, X } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -17,8 +16,6 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   // Modals & Active state
-  const [activeClarificationBill, setActiveClarificationBill] = useState<Bill | null>(null);
-  const [activeQuestions, setActiveQuestions] = useState<ClarificationQuestion[]>([]);
   const [activeVoucher, setActiveVoucher] = useState<VoucherPreview | null>(null);
   const [scanningId, setScanningId] = useState<number | null>(null);
 
@@ -116,9 +113,7 @@ export const App: React.FC = () => {
       loadStats();
 
       // If clarifications needed, open clarification modal
-      if (updated.status === 'CLARIFICATION_REQUIRED') {
-        handleOpenClarification(updated);
-      } else if (updated.status === 'READY_FOR_APPROVAL') {
+      if (updated.status === 'READY_FOR_APPROVAL' || updated.status === 'CLARIFICATION_REQUIRED') {
         handleOpenVoucher(updated);
       }
     } catch (err) {
@@ -129,13 +124,8 @@ export const App: React.FC = () => {
   };
 
   const handleOpenClarification = async (bill: Bill) => {
-    try {
-      const questions = await api.getQuestions(bill.id);
-      setActiveClarificationBill(bill);
-      setActiveQuestions(questions);
-    } catch (err) {
-      console.error('Failed to load questions:', err);
-    }
+    // Redirect clarify to voucher preview and post
+    handleOpenVoucher(bill);
   };
 
   const handleOpenVoucher = async (bill: Bill) => {
@@ -243,24 +233,6 @@ export const App: React.FC = () => {
           scanningId={scanningId}
         />
       </main>
-
-      {/* Clarification Modal */}
-      {activeClarificationBill && (
-        <ClarificationModal
-          bill={activeClarificationBill}
-          questions={activeQuestions}
-          onClose={() => setActiveClarificationBill(null)}
-          onResolved={async () => {
-            const billToPreview = activeClarificationBill;
-            setActiveClarificationBill(null);
-            await loadBills();
-            await loadStats();
-            if (billToPreview) {
-              handleOpenVoucher(billToPreview);
-            }
-          }}
-        />
-      )}
 
       {/* Voucher Preview & Approval Modal */}
       {activeVoucher && (

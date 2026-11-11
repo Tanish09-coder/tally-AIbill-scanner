@@ -171,12 +171,6 @@ async def get_or_create_voucher_preview(bill_id: int, db: AsyncSession = Depends
     if not bill:
         raise HTTPException(status_code=404, detail="Bill not found")
 
-    if bill.is_gst_detected:
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot prepare voucher: Bill has detected GST lines. Please resolve in Clarifications."
-        )
-
     # Fetch cached Tally stock items to match base commodity and check master units
     stock_masters_q = await db.execute(select(TallyMaster).where(TallyMaster.master_type == "STOCK_ITEM"))
     stock_masters = stock_masters_q.scalars().all()

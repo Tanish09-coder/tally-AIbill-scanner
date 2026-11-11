@@ -231,26 +231,8 @@ async def scan_bill_with_ai(bill_id: int, db: AsyncSession = Depends(get_db)):
         # Run Accounting Validator
         validation = accounting_validator.validate_bill(extracted)
 
-        # Generate Clarification Questions if needed
-        questions = clarification_engine.generate_questions_for_bill(
-            bill_data=extracted,
-            validation_issues=validation.issues
-        )
-        for q in questions:
-            db_q = ClarificationQuestion(
-                bill_id=bill.id,
-                target_item_id=q.get("target_item_id"),
-                field_name=q["field_name"],
-                question_hinglish=q["question_hinglish"],
-                question_type=q["question_type"],
-                status="PENDING"
-            )
-            db.add(db_q)
-
-        if questions:
-            bill.status = "CLARIFICATION_REQUIRED"
-        else:
-            bill.status = "READY_FOR_APPROVAL"
+        # Direct to Ready for Approval (voice clarification removed)
+        bill.status = "READY_FOR_APPROVAL"
 
         # Audit
         db.add(AuditLog(

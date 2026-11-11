@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Bill } from '../../types';
-import { Sparkles, MessageSquare, CheckCircle, FileText, Loader2, Trash2, X, Eye } from 'lucide-react';
+import { Sparkles, CheckCircle, FileText, Loader2, Trash2, X, Eye } from 'lucide-react';
 
 interface BillListProps {
   bills: Bill[];
   onScan: (id: number) => void;
-  onOpenClarification: (bill: Bill) => void;
+  onOpenClarification?: (bill: Bill) => void;
   onOpenVoucher: (bill: Bill) => void;
   onDelete?: (id: number) => void;
   onCleanFailed?: () => void;
@@ -15,7 +15,7 @@ interface BillListProps {
 export const BillList: React.FC<BillListProps> = ({
   bills,
   onScan,
-  onOpenClarification,
+  onOpenClarification: _onOpenClarification,
   onOpenVoucher,
   onDelete,
   onCleanFailed,
@@ -58,14 +58,7 @@ export const BillList: React.FC<BillListProps> = ({
   };
 
   const failedCount = bills.filter((b) => b.status === 'FAILED').length;
-  const getStatusBadge = (status: Bill['status'], isGst: boolean) => {
-    if (isGst) {
-      return (
-        <span className="px-2.5 py-1 text-[11px] font-semibold rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-          GST Detected (Blocked)
-        </span>
-      );
-    }
+  const getStatusBadge = (status: Bill['status'], _isGst: boolean) => {
     switch (status) {
       case 'UPLOADED':
         return (
@@ -80,11 +73,6 @@ export const BillList: React.FC<BillListProps> = ({
           </span>
         );
       case 'CLARIFICATION_REQUIRED':
-        return (
-          <span className="px-2.5 py-1 text-[11px] font-semibold rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-            Pending Clarification
-          </span>
-        );
       case 'READY_FOR_APPROVAL':
         return (
           <span className="px-2.5 py-1 text-[11px] font-semibold rounded-full bg-teal-50 text-teal-700 border border-teal-200">
@@ -93,14 +81,14 @@ export const BillList: React.FC<BillListProps> = ({
         );
       case 'POSTED':
         return (
-          <span className="px-2.5 py-1 text-[11px] font-semibold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-            Posted in Tally
+          <span className="px-2.5 py-1 text-[11px] font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+            <CheckCircle className="w-3 h-3" /> Posted to Tally
           </span>
         );
       case 'FAILED':
         return (
           <span className="px-2.5 py-1 text-[11px] font-semibold rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-            Failed
+            Scan Failed
           </span>
         );
       default:
@@ -256,19 +244,10 @@ export const BillList: React.FC<BillListProps> = ({
                       </button>
                     )}
 
-                    {bill.status === 'CLARIFICATION_REQUIRED' && (
-                      <button
-                        onClick={() => onOpenClarification(bill)}
-                        className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-medium hover:bg-amber-700 text-xs flex items-center gap-1.5"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" /> Clarify
-                      </button>
-                    )}
-
-                    {(bill.status === 'READY_FOR_APPROVAL' || bill.status === 'POSTED') && (
+                    {(bill.status === 'READY_FOR_APPROVAL' || bill.status === 'CLARIFICATION_REQUIRED' || bill.status === 'POSTED') && (
                       <button
                         onClick={() => onOpenVoucher(bill)}
-                        className="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 text-xs flex items-center gap-1.5"
+                        className="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >
                         <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
                         {bill.status === 'POSTED' ? 'View Voucher' : 'Preview & Post'}
