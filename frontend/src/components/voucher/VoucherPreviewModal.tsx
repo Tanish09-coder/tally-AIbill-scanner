@@ -90,6 +90,24 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
     loadMasters();
   }, []);
 
+  // Ensure default accounting ledger strictly matches voucher type (Sales -> SALES A/C, Purchase -> PURCHASE A/C)
+  useEffect(() => {
+    const isSales = currentVoucher.voucher_type.toLowerCase() === 'sales';
+    const targetDefault = isSales ? 'SALES A/C' : 'PURCHASE A/C';
+    const current = (currentVoucher.sales_purchase_ledger || '').trim();
+
+    if (
+      (isSales && current.toLowerCase().includes('purchase')) ||
+      (!isSales && current.toLowerCase().includes('sales')) ||
+      current === 'Sales Accounts' ||
+      current === 'Purchase Accounts' ||
+      !current
+    ) {
+      setCurrentVoucher((prev) => ({ ...prev, sales_purchase_ledger: targetDefault }));
+      api.updateVoucher(currentVoucher.id, { sales_purchase_ledger: targetDefault }).catch(() => {});
+    }
+  }, [currentVoucher.voucher_type]);
+
   const loadMasters = async () => {
     setIsLoadingMasters(true);
     try {
@@ -195,29 +213,43 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
     return opts;
   }, [masters, currentVoucher.voucher_type, currentVoucher.party_ledger, suggestedParty, isCurrentPartyExact]);
 
-  // Build sorted options for Accounting Ledgers
+  // Build sorted options for Accounting Ledgers (Sales -> SALES A/C, Purchase -> PURCHASE A/C)
   const accountingLedgerOptions = useMemo<SelectOption[]>(() => {
+    const isSales = currentVoucher.voucher_type.toLowerCase() === 'sales';
+    const targetParent = isSales ? 'sales accounts' : 'purchase accounts';
+    const targetDefault = isSales ? 'SALES A/C' : 'PURCHASE A/C';
+
     if (!masters || !masters.ledgers) {
       return [
-        { value: 'Sales Accounts', label: 'Sales Accounts', group: 'Sales Accounts' },
-        { value: 'Purchase Accounts', label: 'Purchase Accounts', group: 'Purchase Accounts' },
+        { value: targetDefault, label: targetDefault, group: isSales ? 'Sales Accounts' : 'Purchase Accounts' },
       ];
     }
-    const isSales = currentVoucher.voucher_type.toLowerCase() === 'sales';
-    const matchTerm = isSales ? 'sales' : 'purchase';
 
-    const opts: SelectOption[] = masters.ledgers.map((l) => ({
+    // Filter to relevant Sales/Purchase accounts from user's Tally masters
+    const matchingLedgers = masters.ledgers.filter((l) => {
+      const parent = (l.parent || '').toLowerCase();
+      const name = l.name.toLowerCase();
+      return parent.includes(targetParent) || (isSales ? name.includes('sale') : name.includes('purchase'));
+    });
+
+    const opts: SelectOption[] = matchingLedgers.map((l) => ({
       value: l.name,
       label: l.name,
-      group: l.parent || 'Ledger',
+      group: l.parent || (isSales ? 'Sales Accounts' : 'Purchase Accounts'),
     }));
 
-    // Sort to promote matching accounts
+    if (!opts.some((o) => o.value.toUpperCase() === targetDefault)) {
+      opts.unshift({
+        value: targetDefault,
+        label: targetDefault,
+        group: isSales ? 'Sales Accounts' : 'Purchase Accounts',
+      });
+    }
+
+    // Put primary default (SALES A/C or PURCHASE A/C) at the very top
     opts.sort((a, b) => {
-      const aMatch = a.label.toLowerCase().includes(matchTerm);
-      const bMatch = b.label.toLowerCase().includes(matchTerm);
-      if (aMatch && !bMatch) return -1;
-      if (!aMatch && bMatch) return 1;
+      if (a.value.toUpperCase() === targetDefault) return -1;
+      if (b.value.toUpperCase() === targetDefault) return 1;
       return a.label.localeCompare(b.label);
     });
 

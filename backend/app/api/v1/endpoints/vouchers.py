@@ -194,7 +194,17 @@ async def get_or_create_voucher_preview(bill_id: int, db: AsyncSession = Depends
     if bill.voucher_preview:
         vp = bill.voucher_preview
         sugg_party, conf, is_match = await get_party_suggestion_info(vp.party_ledger, db)
-        
+
+        # Enforce correct accounting ledger based on bill type
+        vch_type = "Sales" if bill.bill_type.upper() == "SALES" else "Purchase"
+        vp.voucher_type = vch_type
+        if vch_type == "Sales" and "PURCHASE" in (vp.sales_purchase_ledger or "").upper():
+            vp.sales_purchase_ledger = "SALES A/C"
+        elif vch_type == "Purchase" and "SALES" in (vp.sales_purchase_ledger or "").upper():
+            vp.sales_purchase_ledger = "PURCHASE A/C"
+        elif not vp.sales_purchase_ledger or vp.sales_purchase_ledger in ["Sales Accounts", "Purchase Accounts"]:
+            vp.sales_purchase_ledger = "SALES A/C" if vch_type == "Sales" else "PURCHASE A/C"
+
         # Ensure items are matched to clean base commodity and converted from QTL -> KG if necessary
         raw_items_list = json.loads(vp.items_json)
         # Check if original items from bill should be used for conversion
@@ -228,7 +238,7 @@ async def get_or_create_voucher_preview(bill_id: int, db: AsyncSession = Depends
 
     # Build new preview
     vch_type = "Sales" if bill.bill_type.upper() == "SALES" else "Purchase"
-    default_acct = "Sales Accounts" if vch_type == "Sales" else "Purchase Accounts"
+    default_acct = "SALES A/C" if vch_type == "Sales" else "PURCHASE A/C"
     
     # Check if party has a verified mapping in database
     initial_party = bill.party_name or "Cash"
