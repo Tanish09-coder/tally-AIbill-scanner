@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Camera, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { Upload, Camera, ArrowRight, Loader2, AlertCircle, Plus, X } from 'lucide-react';
 import { api } from '../../services/api';
 import { Bill } from '../../types';
 
@@ -18,15 +18,28 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (files: FileList | null) => {
+  const handleFileChange = (files: FileList | null, append: boolean = false) => {
     if (!files || files.length === 0) return;
     const fileArray = Array.from(files);
-    setSelectedFiles(fileArray);
-    setError(null);
 
-    // Generate previews
-    const newPreviews = fileArray.map((file) => URL.createObjectURL(file));
-    setPreviews(newPreviews);
+    if (append && selectedFiles.length > 0) {
+      const existingSignatures = new Set(selectedFiles.map((f) => `${f.name}_${f.size}`));
+      const newFiles = fileArray.filter((f) => !existingSignatures.has(`${f.name}_${f.size}`));
+      const combined = [...selectedFiles, ...newFiles];
+      setSelectedFiles(combined);
+      setPreviews(combined.map((f) => URL.createObjectURL(f)));
+    } else {
+      setSelectedFiles(fileArray);
+      setPreviews(fileArray.map((f) => URL.createObjectURL(f)));
+    }
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemoveFile = (indexToRemove: number) => {
+    const updatedFiles = selectedFiles.filter((_, idx) => idx !== indexToRemove);
+    setSelectedFiles(updatedFiles);
+    setPreviews(updatedFiles.map((f) => URL.createObjectURL(f)));
   };
 
   const handleUploadAndScan = async () => {
@@ -46,7 +59,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
         setScanStatusText(`AI scanning ${uploaded.length} bill${uploaded.length > 1 ? 's' : ''} in parallel...`);
         // Scan all uploaded bills concurrently using rotating API keys
         await Promise.allSettled(
-          uploaded.map(async (b, idx) => {
+          uploaded.map(async (b) => {
             try {
               return await api.scanBill(b.id);
             } catch (scanErr) {
@@ -106,7 +119,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
       <input
         type="file"
         ref={fileInputRef}
-        onChange={(e) => handleFileChange(e.target.files)}
+        onChange={(e) => handleFileChange(e.target.files, selectedFiles.length > 0)}
         multiple
         accept=".jpg,.jpeg,.png,.pdf"
         className="hidden"
@@ -114,7 +127,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
       <input
         type="file"
         ref={cameraInputRef}
-        onChange={(e) => handleFileChange(e.target.files)}
+        onChange={(e) => handleFileChange(e.target.files, selectedFiles.length > 0)}
         accept="image/*"
         capture="environment"
         className="hidden"
@@ -126,7 +139,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
-            handleFileChange(e.dataTransfer.files);
+            handleFileChange(e.dataTransfer.files, false);
           }}
           className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-emerald-500 transition-colors bg-slate-50/50 flex flex-col items-center justify-center cursor-pointer"
           onClick={() => fileInputRef.current?.click()}
@@ -135,11 +148,16 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
             <Upload className="w-6 h-6" />
           </div>
           <span className="text-sm font-semibold text-slate-800 mb-1">
-            Drag & Drop bill here, or browse files
+            Drag & Drop bills here, or browse files
           </span>
-          <span className="text-xs text-slate-500 mb-4">
-            Supports computer-generated and handwritten sales/purchase invoices
+          <span className="text-xs text-slate-500 mb-3">
+            Supports computer-generated and handwritten sales/purchase invoices (JPG, PNG, PDF)
           </span>
+
+          <div className="mb-4 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 font-medium flex items-center gap-1.5 shadow-2xs">
+            <span>💡</span>
+            <span><strong>Multi-select:</strong> In the file window, press <strong>Ctrl + A</strong> to select all bills, or hold <strong>Ctrl</strong> and click each photo!</span>
+          </div>
 
           {/* Mobile Camera Option */}
           <button
@@ -156,16 +174,46 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
         </div>
       ) : (
         <div>
-          {/* File previews */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-slate-800">
+              {selectedFiles.length} bill{selectedFiles.length > 1 ? 's' : ''} selected
+            </span>
+            <span className="text-[11px] text-slate-500">
+              Click "+ Add More" or use the button below to scan all
+            </span>
+          </div>
+
+          {/* File previews with individual remove and Add More button */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             {previews.map((src, idx) => (
-              <div key={idx} className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-3/4">
+              <div key={idx} className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-3/4 group shadow-2xs">
                 <img src={src} alt="Preview" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFile(idx)}
+                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 hover:bg-rose-600 text-white flex items-center justify-center transition shadow-sm cursor-pointer"
+                  title="Remove this photo"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
                 <div className="absolute bottom-0 inset-x-0 bg-black/60 backdrop-blur-xs p-1.5 text-white text-[10px] truncate">
                   {selectedFiles[idx]?.name}
                 </div>
               </div>
             ))}
+
+            {/* Add More Photos Card */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/50 flex flex-col items-center justify-center p-3 text-center transition aspect-3/4 cursor-pointer text-slate-500 hover:text-emerald-700"
+            >
+              <div className="w-9 h-9 rounded-full bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center mb-1.5">
+                <Plus className="w-5 h-5 text-emerald-600" />
+              </div>
+              <span className="text-xs font-bold">+ Add More</span>
+              <span className="text-[10px] text-slate-400">Bills / Photos</span>
+            </button>
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-slate-100">
@@ -175,16 +223,16 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
                 setSelectedFiles([]);
                 setPreviews([]);
               }}
-              className="text-xs text-slate-500 hover:text-slate-800"
+              className="text-xs text-slate-500 hover:text-rose-600 cursor-pointer transition"
             >
-              Clear Selection
+              Clear All ({selectedFiles.length})
             </button>
 
             <button
               type="button"
               disabled={isUploading}
               onClick={handleUploadAndScan}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-xs hover:bg-emerald-700 shadow-md shadow-emerald-600/20 disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-xs hover:bg-emerald-700 shadow-md shadow-emerald-600/20 disabled:opacity-50 cursor-pointer"
             >
               {isUploading ? (
                 <>
@@ -193,7 +241,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
                 </>
               ) : (
                 <>
-                  Upload & Scan with AI
+                  Upload & Scan {selectedFiles.length > 1 ? `All ${selectedFiles.length} Bills` : 'with AI'}
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
