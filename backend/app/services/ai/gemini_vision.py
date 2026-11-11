@@ -21,6 +21,10 @@ CRITICAL INSTRUCTIONS:
 - If there are handwritten pen alterations (e.g., pen marks altering a rate, or handwritten amounts written in margin like red ink "आले 72380"), note them in "handwritten_notes" for each affected item and in "document_handwritten_notes".
 - Normalize invoice_date to DD-MM-YYYY if recognizable, otherwise keep raw text.
 
+DATE & INVOICE NUMBER EXTRACTION (CRITICAL):
+- "invoice_date": Thoroughly inspect the bill header, corners, rubber stamps, handwritten margin notes, or date fields (labelled as दिनांक, Date, Dt, तारीख, or standalone DD/MM/YYYY or DD/MM/YY e.g. 15/04/2025, 12-5-25, etc.). Always convert and format as DD-MM-YYYY (e.g., "15-04-2025"). Never leave null if any date is printed, written or stamped on the bill!
+- "invoice_number": Look for bill no., memo no., पावती क्र., बिल क्र., or inv no.
+
 PARTY & INVOICE ROLES (VERY IMPORTANT):
 - "seller_name": The business name / supplier printed prominently at the top header or letterhead who issued the bill (e.g., "HARSH INDUSTRIES").
 - "buyer_name": The client / customer named under "To, ", "M/s", "Buyer:", "Consignee:", or delivery address (e.g., "KISHOR SURENDRA GOTHI").
@@ -54,6 +58,8 @@ ITEM MATCHING & MARATHI/HINDI TRANSLATION (CRITICAL):
 You MUST reply with ONLY a single valid JSON object following this exact structure:
 {
   "bill_type": "SALES" | "PURCHASE" | "UNKNOWN",
+  "invoice_number": "string or null",
+  "invoice_date": "DD-MM-YYYY or null",
   "seller_name": "string or null",
   "buyer_name": "string or null",
   "party_name": "string or null",

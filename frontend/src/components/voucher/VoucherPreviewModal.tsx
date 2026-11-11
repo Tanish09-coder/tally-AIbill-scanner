@@ -304,6 +304,16 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
     }
   };
 
+  // Handle invoice date change and auto-save
+  const handleDateChange = async (newDate: string) => {
+    setCurrentVoucher((prev) => ({ ...prev, invoice_date: newDate }));
+    try {
+      await api.updateVoucher(currentVoucher.id, { invoice_date: newDate });
+    } catch (err) {
+      console.warn('Auto-save date failed:', err);
+    }
+  };
+
   // Handle stock item name change for a line item
   const handleStockItemChange = async (idx: number, newStockItemName: string) => {
     const updatedItems = [...currentVoucher.items];
@@ -511,9 +521,16 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
             </div>
 
             <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200 sm:col-span-2">
-              <div>
-                <span className="text-slate-500">Invoice Date: </span>
-                <span className="font-semibold text-slate-800">{currentVoucher.invoice_date}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-600 font-medium">Invoice Date:</span>
+                <input
+                  type="text"
+                  value={currentVoucher.invoice_date}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  placeholder="DD-MM-YYYY"
+                  className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 shadow-2xs w-32"
+                  title="Edit invoice date (DD-MM-YYYY) before creating voucher in Tally"
+                />
               </div>
               <div>
                 <span className="text-slate-500">Voucher Type: </span>

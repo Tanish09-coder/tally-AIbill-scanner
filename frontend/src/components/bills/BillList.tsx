@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Bill } from '../../types';
-import { Sparkles, MessageSquare, CheckCircle, FileText, Loader2, Trash2 } from 'lucide-react';
+import { Sparkles, MessageSquare, CheckCircle, FileText, Loader2, Trash2, X, Eye } from 'lucide-react';
 
 interface BillListProps {
   bills: Bill[];
@@ -23,6 +23,15 @@ export const BillList: React.FC<BillListProps> = ({
 }) => {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [isCleaningFailed, setIsCleaningFailed] = useState(false);
+  const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
+
+  const getPhotoUrl = (filePath?: string) => {
+    if (!filePath) return '';
+    const clean = filePath.replace(/\\/g, '/');
+    const idx = clean.indexOf('uploads/');
+    const rel = idx >= 0 ? clean.substring(idx) : clean;
+    return `http://localhost:8000/${rel}`;
+  };
 
   const handleDeleteClick = async (billId: number) => {
     if (!window.confirm(`Are you sure you want to delete this bill?`)) return;
@@ -155,11 +164,45 @@ export const BillList: React.FC<BillListProps> = ({
               <tr key={bill.id} className="hover:bg-slate-50/70 transition-colors">
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-slate-500" />
+                    <div
+                      onClick={() =>
+                        setViewingImage({
+                          url: getPhotoUrl(bill.file_path),
+                          title: bill.invoice_number || bill.original_filename,
+                        })
+                      }
+                      className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center cursor-pointer hover:ring-2 hover:ring-emerald-500 hover:scale-105 transition shadow-2xs group relative"
+                      title="Click to view original bill photo"
+                    >
+                      {bill.file_type.toLowerCase() === 'pdf' ? (
+                        <FileText className="w-5 h-5 text-slate-500" />
+                      ) : (
+                        <>
+                          <img
+                            src={getPhotoUrl(bill.file_path)}
+                            alt="Bill"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                            <Eye className="w-4 h-4" />
+                          </div>
+                        </>
+                      )}
                     </div>
                     <div>
-                      <span className="font-semibold text-slate-900 block truncate max-w-[150px]">
+                      <span
+                        onClick={() =>
+                          setViewingImage({
+                            url: getPhotoUrl(bill.file_path),
+                            title: bill.invoice_number || bill.original_filename,
+                          })
+                        }
+                        className="font-semibold text-slate-900 block truncate max-w-[150px] cursor-pointer hover:text-emerald-700 hover:underline"
+                        title="Click to view original bill photo"
+                      >
                         {bill.invoice_number || bill.original_filename}
                       </span>
                       <span className="text-[10px] text-slate-400 uppercase tracking-wider">
@@ -184,8 +227,8 @@ export const BillList: React.FC<BillListProps> = ({
                 <td className="py-3 px-4 font-medium text-slate-800">
                   {bill.party_name || <span className="text-slate-400 italic">Not detected</span>}
                 </td>
-                <td className="py-3 px-4 text-slate-600">
-                  {bill.invoice_date || '-'}
+                <td className="py-3 px-4 text-slate-700 font-semibold">
+                  {bill.invoice_date || <span className="text-slate-400 italic font-normal">-</span>}
                 </td>
                 <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
                   {bill.final_amount > 0 ? `₹${bill.final_amount.toFixed(2)}` : '-'}
@@ -254,6 +297,41 @@ export const BillList: React.FC<BillListProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Bill Photo Lightbox Modal */}
+      {viewingImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setViewingImage(null)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-4xl max-h-[92vh] overflow-hidden flex flex-col shadow-2xl relative w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-3.5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">📷</span>
+                <span className="text-xs font-bold truncate max-w-md">{viewingImage.title}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingImage(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer transition"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-3 overflow-auto max-h-[82vh] flex items-center justify-center bg-slate-950">
+              <img
+                src={viewingImage.url}
+                alt={viewingImage.title}
+                className="max-w-full max-h-[78vh] object-contain rounded-lg shadow-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
