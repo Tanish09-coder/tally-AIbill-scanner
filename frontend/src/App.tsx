@@ -5,7 +5,6 @@ import { UploadSection } from './components/upload/UploadSection';
 import { BillList } from './components/bills/BillList';
 import { ClarificationModal } from './components/clarification/ClarificationModal';
 import { VoucherPreviewModal } from './components/voucher/VoucherPreviewModal';
-import { VoiceAssistantWidget } from './components/voice/VoiceAssistantWidget';
 import { api } from './services/api';
 import { Bill, DashboardStats, TallyStatus, ClarificationQuestion, VoucherPreview, TallyMastersData } from './types';
 import { CheckCircle, AlertTriangle, X } from 'lucide-react';
@@ -168,22 +167,7 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleVoiceInput = async (spokenText: string) => {
-    // If a clarification is actively open, use voice to answer the first pending question
-    if (activeClarificationBill && activeQuestions.length > 0) {
-      const pending = activeQuestions.find((q) => q.status === 'PENDING');
-      if (pending) {
-        await api.answerQuestion(pending.id, spokenText, true);
-        const refreshed = await api.getQuestions(activeClarificationBill.id);
-        setActiveQuestions(refreshed);
-        loadBills();
-        loadStats();
-      }
-    }
-  };
 
-  // Determine active voice assistant question prompt
-  const currentPendingQuestion = activeQuestions.find((q) => q.status === 'PENDING')?.question_hinglish;
 
   return (
     <div className="min-h-screen bg-slate-50 pb-12 text-slate-800">
@@ -290,11 +274,6 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Floating Right-Side Hinglish Voice & Chat Assistant */}
-      <VoiceAssistantWidget
-        currentQuestion={currentPendingQuestion}
-        onVoiceResponse={handleVoiceInput}
-      />
     </div>
   );
 };

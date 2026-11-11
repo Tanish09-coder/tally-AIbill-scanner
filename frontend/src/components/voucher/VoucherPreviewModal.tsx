@@ -701,14 +701,6 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
             </div>
           </div>
 
-          {/* AI Voice Assistant Prompt */}
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>
-              <strong>AI Assistant:</strong> "Party <strong>{currentVoucher.party_ledger}</strong> aur Account <strong>{currentVoucher.sales_purchase_ledger}</strong> select kiya gaya hai. Approve karke TallyPrime me post karein?"
-            </span>
-          </div>
-
           {/* Result or Error */}
           {postResult && (
             <div className="p-3.5 bg-emerald-100 border border-emerald-300 rounded-xl text-emerald-900 text-xs font-semibold">
