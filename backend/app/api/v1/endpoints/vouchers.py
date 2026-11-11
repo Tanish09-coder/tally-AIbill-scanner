@@ -60,6 +60,15 @@ def process_and_convert_items(
             raw_qty, raw_rate, raw_unit, target_unit or "KG"
         )
 
+        # 3. Sanity check: In Mandi/Wholesale bills, rates are often written per Quintal (QTL)
+        # even if unit is labeled KG. If Rate * Qty != Amount, compute true rate per unit.
+        if conv_qty > 0 and raw_amt > 0 and abs(conv_rate * conv_qty - raw_amt) > 1.0:
+            corrected_rate = round(raw_amt / conv_qty, 2)
+            if not was_conv:
+                was_conv = True
+                explanation = f"Rate scaled to ₹{corrected_rate:.2f}/{eff_unit} to match total amount ₹{raw_amt:.2f}"
+            conv_rate = corrected_rate
+
         processed.append({
             "item_name": raw_name,
             "stock_item_name": stock_name,

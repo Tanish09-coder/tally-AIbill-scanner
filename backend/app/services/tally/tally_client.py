@@ -537,9 +537,15 @@ class TallyClient:
             rate = float(it["rate"])
             amount = float(it["amount"])
             inv_sum += amount
-            
+
+            # In Tally, Rate * Qty must equal Amount. If rate is quoted per Quintal or different unit:
+            if qty > 0 and abs(rate * qty - amount) > 1.0:
+                effective_rate = round(amount / qty, 2)
+            else:
+                effective_rate = rate
+
             inv_amt_signed = f"{amount:.2f}" if is_sales else f"-{amount:.2f}"
-            rate_str = f"{rate:.2f}/{unit}"
+            rate_str = f"{effective_rate:.2f}/{unit}"
             billed_qty_str = f"{qty:.2f} {unit}"
             inv_deemed = "No" if is_sales else "Yes"
 
@@ -562,18 +568,11 @@ class TallyClient:
 
         # 2. Additional ledger entries (Additional charges/Hamali, Discount, Round off)
         addl_ledger_blocks = []
-        
-        # Check if there is an unexplained discrepancy between final_amount and inv_sum
-        unaccounted = round(final_amount - (inv_sum + additional_charges - discount + round_off), 2)
-        effective_addl = additional_charges
-        if unaccounted > 0 and additional_charges == 0:
-            effective_addl = unaccounted
-        elif unaccounted != 0:
-            round_off = round(round_off + unaccounted, 2)
 
-        if effective_addl and effective_addl > 0:
-            # For Purchase: Hamali is an expense (Debit -> Negative)
-            # For Sales: Additional charge is income (Credit -> Positive)
+        effective_addl = additional_charges if additional_charges and additional_charges > 0 else 0.0
+        effective_disc = discount if discount and discount > 0 else 0.0
+
+        if effective_addl > 0:
             addl_amt_signed = f"{effective_addl:.2f}" if is_sales else f"-{effective_addl:.2f}"
             addl_deemed = "No" if is_sales else "Yes"
             addl_ledger_blocks.append(f"""<LEDGERENTRIES.LIST>
@@ -582,10 +581,8 @@ class TallyClient:
 <AMOUNT>{addl_amt_signed}</AMOUNT>
 </LEDGERENTRIES.LIST>""")
 
-        if discount and discount > 0:
-            # For Purchase: Discount received is Credit -> Positive
-            # For Sales: Discount allowed is Debit -> Negative
-            disc_amt_signed = f"-{discount:.2f}" if is_sales else f"{discount:.2f}"
+        if effective_disc > 0:
+            disc_amt_signed = f"-{effective_disc:.2f}" if is_sales else f"{effective_disc:.2f}"
             disc_deemed = "Yes" if is_sales else "No"
             addl_ledger_blocks.append(f"""<LEDGERENTRIES.LIST>
 <LEDGERNAME>{discount_ledger or "Discount"}</LEDGERNAME>
@@ -593,13 +590,23 @@ class TallyClient:
 <AMOUNT>{disc_amt_signed}</AMOUNT>
 </LEDGERENTRIES.LIST>""")
 
-        if round_off and abs(round_off) >= 0.01:
+        # Ensure exact mathematical double-entry balance for Tally
+        # Total line items debits/credits + charges must balance party credit/debit
+        computed_total = round(inv_sum + effective_addl - effective_disc, 2)
+        diff_with_final = round(final_amount - computed_total, 2)
+
+        # If diff is small or there is an explicit round off, add round off ledger
+        effective_ro = round_off
+        if abs(diff_with_final) >= 0.01 and abs(diff_with_final) <= 5.0:
+            effective_ro = diff_with_final
+
+        if abs(effective_ro) >= 0.01:
             if is_sales:
-                ro_amt_signed = f"{round_off:.2f}" if round_off > 0 else f"{round_off:.2f}"
-                ro_deemed = "No" if round_off > 0 else "Yes"
+                ro_amt_signed = f"{effective_ro:.2f}" if effective_ro > 0 else f"{effective_ro:.2f}"
+                ro_deemed = "No" if effective_ro > 0 else "Yes"
             else:
-                ro_amt_signed = f"-{round_off:.2f}" if round_off > 0 else f"{abs(round_off):.2f}"
-                ro_deemed = "Yes" if round_off > 0 else "No"
+                ro_amt_signed = f"-{effective_ro:.2f}" if effective_ro > 0 else f"{abs(effective_ro):.2f}"
+                ro_deemed = "Yes" if effective_ro > 0 else "No"
             addl_ledger_blocks.append(f"""<LEDGERENTRIES.LIST>
 <LEDGERNAME>Round Off</LEDGERNAME>
 <ISDEEMEDPOSITIVE>{ro_deemed}</ISDEEMEDPOSITIVE>
@@ -608,10 +615,9 @@ class TallyClient:
 
         additional_entries_xml = "\n".join(addl_ledger_blocks)
 
-        # 3. Party Ledger entry
-        # For Purchase: Supplier is Credited -> Positive amount
-        # For Sales: Customer is Debited -> Negative amount
-        party_amt_signed = f"-{final_amount:.2f}" if is_sales else f"{final_amount:.2f}"
+        # 3. Party Ledger entry: strictly balanced to algebraic sum of entries
+        party_balance = round(inv_sum + effective_addl - effective_disc + effective_ro, 2)
+        party_amt_signed = f"-{party_balance:.2f}" if is_sales else f"{party_balance:.2f}"
         party_deemed_positive = "Yes" if is_sales else "No"
 
         current_comp_xml = f"<SVCURRENTCOMPANY>{company_name}</SVCURRENTCOMPANY>" if company_name else ""
