@@ -10,4 +10,4 @@ echo Both servers launched!
 echo - Web UI:  http://localhost:5173/
 echo - Backend: http://localhost:8000/
 echo ===================================================
-timeout /t 5
+pause
