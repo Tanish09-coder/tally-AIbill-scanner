@@ -88,19 +88,77 @@ class GeminiVisionService:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.GEMINI_API_KEY
         self.candidate_models = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-flash-lite-latest"]
+        self._key_index = 0
+
+    def get_keys(self) -> List[str]:
+        keys = settings.gemini_keys_list
+        if not keys and self.api_key and not self.api_key.startswith("your_"):
+            keys = [self.api_key]
+        return keys
+
+    async def scan_with_groq(self, b64_image: str, mime_type: str) -> Optional[Dict[str, Any]]:
+        """Ultra-fast Llama-3.2 Vision OCR via Groq API when key is configured."""
+        groq_key = settings.GROQ_API_KEY
+        if not groq_key or groq_key.startswith("your_") or len(groq_key.strip()) < 10:
+            return None
+
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {groq_key.strip()}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama-3.2-11b-vision-preview",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"{VISION_SYSTEM_INSTRUCTION}\nExtract all billing and item details from this bill image in JSON format as specified."},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64_image}"}}
+                    ]
+                }
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.1
+        }
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                res = await client.post(url, headers=headers, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    content = data["choices"][0]["message"]["content"]
+                    logger.info("Successfully processed bill using Groq Llama-3.2 Vision!")
+                    return json.loads(content)
+                else:
+                    logger.warning(f"Groq Vision returned HTTP {res.status_code}: {res.text[:200]}")
+        except Exception as e:
+            logger.warning(f"Groq Vision error: {e}")
+        return None
 
     async def scan_bill_image(self, image_path: str, mime_type: str = "image/jpeg") -> Dict[str, Any]:
         """
         Reads an image file (or PDF page converted to image) and extracts structured accounting data
-        using Gemini Vision API.
+        using Groq (if provided) or Gemini Vision API with automatic multi-key rotation and model fallback.
         """
-        if not self.api_key or self.api_key.startswith("your_"):
-            raise ValueError("GEMINI_API_KEY is not configured in backend/.env")
-
         import base64
         with open(image_path, "rb") as f:
             image_bytes = f.read()
         b64_image = base64.b64encode(image_bytes).decode("utf-8")
+
+        # 1. Try Groq Vision first if user configured GROQ_API_KEY
+        groq_res = await self.scan_with_groq(b64_image, mime_type)
+        if groq_res:
+            return groq_res
+
+        # 2. Gemini Vision with multi-key rotation
+        keys = self.get_keys()
+        if not keys:
+            raise ValueError("No valid GEMINI_API_KEY or GROQ_API_KEY is configured in backend/.env")
+
+        # Rotate keys for concurrent load balancing
+        start_idx = self._key_index % len(keys)
+        self._key_index += 1
+        ordered_keys = keys[start_idx:] + keys[:start_idx]
 
         request_body = {
             "contents": [
@@ -124,25 +182,27 @@ class GeminiVisionService:
         }
 
         last_error = None
-        for model in self.candidate_models:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.api_key}"
-            try:
-                async with httpx.AsyncClient(timeout=25.0) as client:
-                    response = await client.post(url, json=request_body)
-                    if response.status_code == 200:
-                        result_data = response.json()
-                        candidate = result_data["candidates"][0]["content"]["parts"][0]["text"]
-                        parsed_json = json.loads(candidate)
-                        logger.info(f"Successfully processed bill with {model}")
-                        return parsed_json
-                    else:
-                        logger.warning(f"Model {model} returned HTTP {response.status_code}: {response.text[:200]}")
-                        last_error = f"{model}: {response.text[:200]}"
-            except Exception as e:
-                logger.warning(f"Error calling {model}: {e}")
-                last_error = str(e)
+        for key in ordered_keys:
+            masked_key = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "***"
+            for model in self.candidate_models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
+                try:
+                    async with httpx.AsyncClient(timeout=25.0) as client:
+                        response = await client.post(url, json=request_body)
+                        if response.status_code == 200:
+                            result_data = response.json()
+                            candidate = result_data["candidates"][0]["content"]["parts"][0]["text"]
+                            parsed_json = json.loads(candidate)
+                            logger.info(f"Successfully processed bill with {model} (key: {masked_key})")
+                            return parsed_json
+                        else:
+                            logger.warning(f"Model {model} with key {masked_key} returned HTTP {response.status_code}: {response.text[:200]}")
+                            last_error = f"{model} ({masked_key}): {response.text[:200]}"
+                except Exception as e:
+                    logger.warning(f"Error calling {model} with key {masked_key}: {e}")
+                    last_error = str(e)
 
-        raise RuntimeError(f"All Gemini Vision models failed. Last error: {last_error}")
+        raise RuntimeError(f"All Vision models/keys failed. Last error: {last_error}")
 
 gemini_vision_service = GeminiVisionService()
 

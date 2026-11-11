@@ -12,6 +12,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
   const [previews, setPreviews] = useState<string[]>([]);
   const [billTypeHint, setBillTypeHint] = useState<string>('SALES');
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [scanStatusText, setScanStatusText] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,18 +38,34 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
     setIsUploading(true);
     setError(null);
     try {
+      const count = selectedFiles.length;
+      setScanStatusText(`Uploading ${count} bill${count > 1 ? 's' : ''}...`);
       const uploaded = await api.uploadBills(selectedFiles, billTypeHint);
-      // Automatically trigger scan for first uploaded bill
+
       if (uploaded.length > 0) {
-        await api.scanBill(uploaded[0].id);
+        setScanStatusText(`AI scanning ${uploaded.length} bill${uploaded.length > 1 ? 's' : ''} in parallel...`);
+        // Scan all uploaded bills concurrently using rotating API keys
+        await Promise.allSettled(
+          uploaded.map(async (b, idx) => {
+            try {
+              return await api.scanBill(b.id);
+            } catch (scanErr) {
+              console.warn(`Scan warning for bill #${b.id}:`, scanErr);
+              return null;
+            }
+          })
+        );
       }
+
       setSelectedFiles([]);
       setPreviews([]);
+      setScanStatusText('');
       onUploadSuccess(uploaded);
     } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Failed to upload and scan bill.');
+      setError(err?.response?.data?.detail || 'Failed to upload and scan bills.');
     } finally {
       setIsUploading(false);
+      setScanStatusText('');
     }
   };
 
@@ -172,7 +189,7 @@ export const UploadSection: React.FC<UploadSectionProps> = ({ onUploadSuccess })
               {isUploading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Scanning with Multilingual Vision AI...
+                  <span>{scanStatusText || 'Scanning with Multilingual Vision AI...'}</span>
                 </>
               ) : (
                 <>

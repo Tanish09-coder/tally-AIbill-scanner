@@ -75,3 +75,4 @@ start_frontend.bat
 ### 4. Access UI
 * **Desktop / Laptop**: `http://localhost:5173`
 * **Mobile (Same Wi-Fi)**: `http://<your-local-ip>:5173`
+

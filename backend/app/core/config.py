@@ -29,8 +29,22 @@ class Settings(BaseSettings):
     )
 
     # AI API Keys
-    GEMINI_API_KEY: str = Field(default="", description="Google Gemini API Key for Vision & Document OCR")
+    GEMINI_API_KEY: str = Field(default="", description="Primary Google Gemini API Key for Vision & Document OCR")
+    GEMINI_API_KEY_2: Optional[str] = Field(default="", description="Secondary Gemini API Key for rotation")
+    GEMINI_API_KEY_3: Optional[str] = Field(default="", description="Tertiary Gemini API Key for rotation")
+    GROQ_API_KEY: Optional[str] = Field(default="", description="Groq API Key for fast Vision OCR")
     SARVAM_API_KEY: str = Field(default="", description="Sarvam AI API Key for Indian Hinglish Voice STT/TTS")
+
+    @property
+    def gemini_keys_list(self) -> List[str]:
+        keys = []
+        for k in [self.GEMINI_API_KEY, self.GEMINI_API_KEY_2, self.GEMINI_API_KEY_3]:
+            if k and isinstance(k, str) and k.strip() and k.strip().lower() not in PLACEHOLDER_VALUES:
+                for sub in k.split(","):
+                    clean = sub.strip()
+                    if clean and clean not in keys and clean.lower() not in PLACEHOLDER_VALUES:
+                        keys.append(clean)
+        return keys
 
     # TallyPrime XML over HTTP Server
     TALLY_HOST: str = Field(default="http://localhost", description="TallyPrime HTTP Host")
