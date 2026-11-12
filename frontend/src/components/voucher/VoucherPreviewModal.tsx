@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { VoucherPreview, TallyMastersData } from '../../types';
-import { X, CheckCircle, Loader2, ArrowRight, UserPlus, RefreshCw, Layers, Edit3 } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { VoucherPreview, VoucherItemLine, TallyMastersData } from '../../types';
+import { X, CheckCircle, Loader2, ArrowRight, UserPlus, RefreshCw, Layers, Edit3, Trash2, Plus } from 'lucide-react';
 import { api } from '../../services/api';
 import { SearchableSelect, SelectOption } from '../common/SearchableSelect';
 
@@ -391,6 +391,145 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
     }
   };
 
+  // Auto-sync debounced ref
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const syncVoucherToBackend = (v: VoucherPreview) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await api.updateVoucher(v.id, {
+          items: v.items,
+          subtotal: v.subtotal,
+          discount: v.discount,
+          additional_charges: v.additional_charges,
+          round_off: v.round_off,
+          final_amount: v.final_amount,
+        });
+      } catch (err) {
+        console.warn('Auto-sync voucher details failed:', err);
+      }
+    }, 400);
+  };
+
+  // Handle line item field changes: quantity, unit, rate, amount
+  const handleItemFieldChange = (
+    idx: number,
+    field: 'quantity' | 'unit' | 'rate' | 'amount',
+    value: string | number
+  ) => {
+    const updatedItems = [...currentVoucher.items];
+    const it = { ...updatedItems[idx] };
+
+    if (field === 'quantity') {
+      const q = typeof value === 'number' ? value : parseFloat(value) || 0;
+      it.quantity = q;
+      // Auto-recalculate amount: Qty * Rate
+      it.amount = Math.round(q * (it.rate || 0) * 100) / 100;
+    } else if (field === 'rate') {
+      const r = typeof value === 'number' ? value : parseFloat(value) || 0;
+      it.rate = r;
+      // Auto-recalculate amount: Qty * Rate
+      it.amount = Math.round((it.quantity || 0) * r * 100) / 100;
+    } else if (field === 'amount') {
+      const a = typeof value === 'number' ? value : parseFloat(value) || 0;
+      it.amount = a;
+      // Auto-recalculate rate: Amount / Qty (if qty > 0)
+      if (it.quantity > 0) {
+        it.rate = Math.round((a / it.quantity) * 100) / 100;
+      }
+    } else if (field === 'unit') {
+      it.unit = String(value);
+    }
+
+    updatedItems[idx] = it;
+
+    // Recalculate subtotal and final_amount
+    const newSubtotal = Math.round(updatedItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0) * 100) / 100;
+    const newFinal = Math.round(
+      (newSubtotal - (currentVoucher.discount || 0) + (currentVoucher.additional_charges || 0) + (currentVoucher.round_off || 0)) * 100
+    ) / 100;
+
+    const newVoucher = {
+      ...currentVoucher,
+      items: updatedItems,
+      subtotal: newSubtotal,
+      final_amount: newFinal,
+    };
+
+    setCurrentVoucher(newVoucher);
+    syncVoucherToBackend(newVoucher);
+  };
+
+  // Add a new empty line item
+  const handleAddItem = () => {
+    const defaultStock = stockItemOptions[0]?.value || 'Item';
+    const newItem: VoucherItemLine = {
+      item_name: defaultStock,
+      stock_item_name: defaultStock,
+      quantity: 1,
+      unit: 'KG',
+      rate: 0,
+      amount: 0,
+      discount: 0,
+    };
+    const updatedItems = [...currentVoucher.items, newItem];
+    const newSubtotal = Math.round(updatedItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0) * 100) / 100;
+    const newFinal = Math.round(
+      (newSubtotal - (currentVoucher.discount || 0) + (currentVoucher.additional_charges || 0) + (currentVoucher.round_off || 0)) * 100
+    ) / 100;
+
+    const newVoucher = {
+      ...currentVoucher,
+      items: updatedItems,
+      subtotal: newSubtotal,
+      final_amount: newFinal,
+    };
+    setCurrentVoucher(newVoucher);
+    syncVoucherToBackend(newVoucher);
+  };
+
+  // Delete a line item
+  const handleDeleteItem = (idx: number) => {
+    if (currentVoucher.items.length <= 1) return;
+    const updatedItems = currentVoucher.items.filter((_, i) => i !== idx);
+    const newSubtotal = Math.round(updatedItems.reduce((acc, item) => acc + (Number(item.amount) || 0), 0) * 100) / 100;
+    const newFinal = Math.round(
+      (newSubtotal - (currentVoucher.discount || 0) + (currentVoucher.additional_charges || 0) + (currentVoucher.round_off || 0)) * 100
+    ) / 100;
+
+    const newVoucher = {
+      ...currentVoucher,
+      items: updatedItems,
+      subtotal: newSubtotal,
+      final_amount: newFinal,
+    };
+    setCurrentVoucher(newVoucher);
+    syncVoucherToBackend(newVoucher);
+  };
+
+  // Handle editing totals (Discount, Hamali, Round Off)
+  const handleTotalsChange = (updates: { discount?: number; additional_charges?: number; round_off?: number }) => {
+    const nextDisc = updates.discount !== undefined ? updates.discount : (currentVoucher.discount || 0);
+    const nextAddl = updates.additional_charges !== undefined ? updates.additional_charges : (currentVoucher.additional_charges || 0);
+    const nextRound = updates.round_off !== undefined ? updates.round_off : (currentVoucher.round_off || 0);
+
+    const newFinal = Math.round(((currentVoucher.subtotal || 0) - nextDisc + nextAddl + nextRound) * 100) / 100;
+
+    const newVoucher = {
+      ...currentVoucher,
+      discount: nextDisc,
+      additional_charges: nextAddl,
+      round_off: nextRound,
+      final_amount: newFinal,
+    };
+
+    setCurrentVoucher(newVoucher);
+    syncVoucherToBackend(newVoucher);
+  };
+
   const handleApproveAndPost = async () => {
     setIsPosting(true);
     setError(null);
@@ -400,7 +539,13 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
       await api.updateVoucher(currentVoucher.id, {
         party_ledger: currentVoucher.party_ledger,
         sales_purchase_ledger: currentVoucher.sales_purchase_ledger,
+        invoice_date: currentVoucher.invoice_date,
         items: currentVoucher.items,
+        subtotal: currentVoucher.subtotal,
+        discount: currentVoucher.discount,
+        additional_charges: currentVoucher.additional_charges,
+        round_off: currentVoucher.round_off,
+        final_amount: currentVoucher.final_amount,
       });
 
       const res = await api.approveAndPost(currentVoucher.id);
@@ -598,16 +743,17 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
                 <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="py-2.5 px-3">Item / Stock Name</th>
-                    <th className="py-2.5 px-3 text-right">Qty</th>
-                    <th className="py-2.5 px-3">Unit</th>
-                    <th className="py-2.5 px-3 text-right">Rate</th>
-                    <th className="py-2.5 px-3 text-right">Amount</th>
+                    <th className="py-2.5 px-2 text-right w-24">Qty</th>
+                    <th className="py-2.5 px-2 text-center w-20">Unit</th>
+                    <th className="py-2.5 px-2 text-right w-28">Rate</th>
+                    <th className="py-2.5 px-2 text-right w-32">Amount</th>
+                    <th className="py-2.5 px-1 text-center w-8"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {currentVoucher.items.map((it, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/70 transition">
-                      <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[220px]">
+                      <td className="py-2.5 px-3 font-medium text-slate-900 max-w-[200px] align-top">
                         {editingItemIndex === idx && stockItemOptions.length > 0 ? (
                           <div className="flex items-center gap-1.5">
                             <SearchableSelect
@@ -622,7 +768,7 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setEditingItemIndex(null)}
-                              className="text-slate-400 hover:text-slate-600 p-1"
+                              className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                               title="Cancel"
                             >
                               <X className="w-3.5 h-3.5" />
@@ -644,60 +790,186 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono">
-                        <span className="font-bold text-slate-900">
-                          {it.quantity.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                        </span>
+
+                      {/* Editable Qty */}
+                      <td className="py-2 px-2 text-right align-top">
+                        <input
+                          type="number"
+                          step="any"
+                          value={it.quantity === 0 ? '' : it.quantity}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                            handleItemFieldChange(idx, 'quantity', isNaN(val) ? 0 : val);
+                          }}
+                          className="w-full px-2 py-1 text-right text-xs font-mono font-bold text-slate-900 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 shadow-2xs"
+                          title="Edit quantity"
+                        />
                         {it.original_quantity && it.original_unit && it.original_unit !== it.unit && (
-                          <span className="block text-[10px] text-emerald-700 font-sans font-semibold">
+                          <span className="block text-[10px] text-emerald-700 font-sans font-semibold mt-0.5 text-right" title={`Original from bill: ${it.original_quantity} ${it.original_unit}`}>
                             ⚡ {it.original_quantity} {it.original_unit}
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3">
-                        <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-[11px] border border-slate-200">
-                          {it.unit}
-                        </span>
+
+                      {/* Editable Unit */}
+                      <td className="py-2 px-2 text-center align-top">
+                        <input
+                          type="text"
+                          value={it.unit}
+                          onChange={(e) => {
+                            handleItemFieldChange(idx, 'unit', e.target.value.toUpperCase());
+                          }}
+                          placeholder="Unit"
+                          className="w-full px-1.5 py-1 text-center text-xs font-bold uppercase text-slate-700 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:bg-white focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 shadow-2xs"
+                          title="Edit unit (KG, QTL, BAGS, NOS)"
+                        />
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono">
-                        <span className="text-slate-900">₹{it.rate.toFixed(2)}</span>
+
+                      {/* Editable Rate */}
+                      <td className="py-2 px-2 text-right align-top">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1.5 text-slate-400 text-xs">₹</span>
+                          <input
+                            type="number"
+                            step="any"
+                            value={it.rate === 0 ? '' : it.rate}
+                            placeholder="0.00"
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                              handleItemFieldChange(idx, 'rate', isNaN(val) ? 0 : val);
+                            }}
+                            className="w-full pl-5 pr-2 py-1 text-right text-xs font-mono text-slate-900 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 shadow-2xs"
+                            title="Edit rate per unit"
+                          />
+                        </div>
                         {it.original_rate && it.original_unit && it.original_unit !== it.unit && (
-                          <span className="block text-[10px] text-slate-400 font-sans">
+                          <span className="block text-[10px] text-slate-400 font-sans mt-0.5 text-right" title={`Original rate: ₹${it.original_rate}/${it.original_unit}`}>
                             ₹{it.original_rate.toFixed(0)}/{it.original_unit}
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                        ₹{it.amount.toFixed(2)}
+
+                      {/* Editable Amount */}
+                      <td className="py-2 px-2 text-right align-top">
+                        <div className="relative">
+                          <span className="absolute left-2 top-1.5 text-slate-400 text-xs">₹</span>
+                          <input
+                            type="number"
+                            step="any"
+                            value={it.amount === 0 ? '' : it.amount}
+                            placeholder="0.00"
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                              handleItemFieldChange(idx, 'amount', isNaN(val) ? 0 : val);
+                            }}
+                            className="w-full pl-5 pr-2 py-1 text-right text-xs font-mono font-bold text-slate-900 bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 shadow-2xs"
+                            title="Edit total amount"
+                          />
+                        </div>
+                      </td>
+
+                      {/* Delete Item */}
+                      <td className="py-2 px-1 text-center align-top">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteItem(idx)}
+                          disabled={currentVoucher.items.length <= 1}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                          title="Delete line item"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+
+              {/* Add Item Row footer */}
+              <div className="p-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={handleAddItem}
+                  className="px-3 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Line Item</span>
+                </button>
+                <span className="text-[11px] text-slate-500">
+                  Editing Qty or Rate recalculates Amount automatically.
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Financial Totals */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col gap-1.5 ml-auto sm:w-72 text-xs">
-            <div className="flex justify-between text-slate-600">
-              <span>Subtotal:</span>
-              <span className="font-mono">₹{currentVoucher.subtotal.toFixed(2)}</span>
+          {/* Financial Totals (Editable) */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col gap-2 ml-auto sm:w-80 text-xs">
+            <div className="flex justify-between items-center text-slate-600">
+              <span className="font-medium">Subtotal:</span>
+              <span className="font-mono font-bold text-slate-900">₹{currentVoucher.subtotal.toFixed(2)}</span>
             </div>
-            {currentVoucher.discount > 0 && (
-              <div className="flex justify-between text-emerald-600">
-                <span>Discount:</span>
-                <span className="font-mono">-₹{currentVoucher.discount.toFixed(2)}</span>
+
+            <div className="flex justify-between items-center text-slate-600">
+              <span className="font-medium">Discount:</span>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-mono">-₹</span>
+                <input
+                  type="number"
+                  step="any"
+                  value={currentVoucher.discount || ''}
+                  placeholder="0.00"
+                  onChange={(e) => {
+                    const d = parseFloat(e.target.value) || 0;
+                    handleTotalsChange({ discount: d });
+                  }}
+                  className="w-24 px-2 py-0.5 text-right font-mono text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 shadow-2xs"
+                  title="Edit discount amount"
+                />
               </div>
-            )}
-            {currentVoucher.round_off !== 0 && (
-              <div className="flex justify-between text-slate-600">
-                <span>Round Off:</span>
-                <span className="font-mono">₹{currentVoucher.round_off.toFixed(2)}</span>
+            </div>
+
+            <div className="flex justify-between items-center text-slate-600">
+              <span className="font-medium">Addl. Charges (Hamali):</span>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-mono">+₹</span>
+                <input
+                  type="number"
+                  step="any"
+                  value={currentVoucher.additional_charges || ''}
+                  placeholder="0.00"
+                  onChange={(e) => {
+                    const a = parseFloat(e.target.value) || 0;
+                    handleTotalsChange({ additional_charges: a });
+                  }}
+                  className="w-24 px-2 py-0.5 text-right font-mono text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 shadow-2xs"
+                  title="Edit additional charges (Hamali)"
+                />
               </div>
-            )}
-            <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
+            </div>
+
+            <div className="flex justify-between items-center text-slate-600">
+              <span className="font-medium">Round Off:</span>
+              <div className="flex items-center gap-1">
+                <span className="text-slate-400 font-mono">₹</span>
+                <input
+                  type="number"
+                  step="any"
+                  value={currentVoucher.round_off || ''}
+                  placeholder="0.00"
+                  onChange={(e) => {
+                    const ro = parseFloat(e.target.value) || 0;
+                    handleTotalsChange({ round_off: ro });
+                  }}
+                  className="w-24 px-2 py-0.5 text-right font-mono text-xs border border-slate-300 rounded-md bg-white focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 shadow-2xs"
+                  title="Edit round off"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
               <span>Final Total (Non-GST):</span>
-              <span className="font-mono text-emerald-700">₹{currentVoucher.final_amount.toFixed(2)}</span>
+              <span className="font-mono text-emerald-700 text-base font-extrabold">₹{currentVoucher.final_amount.toFixed(2)}</span>
             </div>
           </div>
 
