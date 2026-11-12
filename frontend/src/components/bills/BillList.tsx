@@ -244,13 +244,13 @@ export const BillList: React.FC<BillListProps> = ({
                       </button>
                     )}
 
-                    {(bill.status === 'READY_FOR_APPROVAL' || bill.status === 'CLARIFICATION_REQUIRED' || bill.status === 'POSTED') && (
+                    {(bill.status === 'READY_FOR_APPROVAL' || bill.status === 'CLARIFICATION_REQUIRED' || bill.status === 'POSTED' || bill.status === 'FAILED') && (
                       <button
                         onClick={() => onOpenVoucher(bill)}
                         className="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800 text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >
                         <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                        {bill.status === 'POSTED' ? 'View Voucher' : 'Preview & Post'}
+                        {bill.status === 'POSTED' ? 'View Voucher' : bill.status === 'FAILED' ? 'Retry & Post' : 'Preview & Post'}
                       </button>
                     )}
 

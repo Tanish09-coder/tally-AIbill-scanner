@@ -411,8 +411,19 @@ async def approve_and_post_voucher(
 
     company_name = tally_status.get("company_name") or ""
 
-    # 2. Build Tally XML
+    # 2. Ensure stock items and party ledger exist in Tally
     items = json.loads(vp.items_json)
+    for it in items:
+        item_name = it.get("stock_item_name")
+        unit = it.get("unit", "KG")
+        if item_name:
+            await tally_client.ensure_stock_item(company_name, item_name, unit)
+
+    if vp.party_ledger:
+        party_parent = "Sundry Debtors" if vp.voucher_type == "Sales" else "Sundry Creditors"
+        await tally_client.ensure_ledger(company_name, vp.party_ledger, party_parent)
+
+    # 3. Build Tally XML
     tally_date = format_date_for_tally(vp.invoice_date)
     xml_payload = tally_client.build_non_gst_voucher_xml(
         company_name=company_name,
@@ -455,8 +466,9 @@ async def approve_and_post_voucher(
             details_json=json.dumps({"company": company_name, "invoice": vp.invoice_number})
         ))
     else:
-        if bill:
-            bill.status = "FAILED"
+        # Keep bill in READY_FOR_APPROVAL so the user can inspect/edit and retry posting
+        if bill and bill.status != "POSTED":
+            bill.status = "READY_FOR_APPROVAL"
         db.add(AuditLog(
             action="TALLY_FAILED",
             entity_type="VOUCHER",

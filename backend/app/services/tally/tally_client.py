@@ -25,6 +25,13 @@ def clean_tally_xml(xml_text: str) -> str:
     xml_text = re.sub(r'&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)', '&amp;', xml_text)
     return xml_text
 
+def escape_xml(s: Any) -> str:
+    """Escapes special characters (&, <, >, \", ') for valid Tally XML payloads."""
+    if s is None:
+        return ""
+    import xml.sax.saxutils as saxutils
+    return saxutils.escape(str(s), {'"': '&quot;', "'": '&apos;'})
+
 class TallyClient:
     """
     Communicates directly with TallyPrime installed on the local system
@@ -428,6 +435,9 @@ class TallyClient:
 
     def build_create_ledger_xml(self, company_name: str, ledger_name: str, parent_group: str = "Sundry Debtors") -> str:
         """Builds standard Tally XML to create a new Ledger (only after explicit user approval)."""
+        esc_comp = escape_xml(company_name)
+        esc_name = escape_xml(ledger_name)
+        esc_parent = escape_xml(parent_group)
         return f"""<ENVELOPE>
 <HEADER>
 <TALLYREQUEST>Import Data</TALLYREQUEST>
@@ -437,14 +447,14 @@ class TallyClient:
 <REQUESTDESC>
 <REPORTNAME>All Masters</REPORTNAME>
 <STATICVARIABLES>
-<SVCURRENTCOMPANY>{company_name}</SVCURRENTCOMPANY>
+<SVCURRENTCOMPANY>{esc_comp}</SVCURRENTCOMPANY>
 </STATICVARIABLES>
 </REQUESTDESC>
 <REQUESTDATA>
 <TALLYMESSAGE xmlns:UDF="TallyUDF">
-<LEDGER NAME="{ledger_name}" ACTION="Create">
-<NAME>{ledger_name}</NAME>
-<PARENT>{parent_group}</PARENT>
+<LEDGER NAME="{esc_name}" ACTION="Create">
+<NAME>{esc_name}</NAME>
+<PARENT>{esc_parent}</PARENT>
 <ISBILLWISEON>Yes</ISBILLWISEON>
 <AFFECTSSTOCK>No</AFFECTSSTOCK>
 </LEDGER>
@@ -456,6 +466,10 @@ class TallyClient:
 
     def build_create_stock_item_xml(self, company_name: str, item_name: str, parent_group: str = "Primary", uom: str = "NOS") -> str:
         """Builds standard Tally XML to create a new Stock Item (only after explicit user approval)."""
+        esc_comp = escape_xml(company_name)
+        esc_name = escape_xml(item_name)
+        esc_uom = escape_xml(uom)
+        parent_tag = "<PARENT></PARENT>" if not parent_group or parent_group.strip().lower() == "primary" else f"<PARENT>{escape_xml(parent_group)}</PARENT>"
         return f"""<ENVELOPE>
 <HEADER>
 <TALLYREQUEST>Import Data</TALLYREQUEST>
@@ -465,15 +479,15 @@ class TallyClient:
 <REQUESTDESC>
 <REPORTNAME>All Masters</REPORTNAME>
 <STATICVARIABLES>
-<SVCURRENTCOMPANY>{company_name}</SVCURRENTCOMPANY>
+<SVCURRENTCOMPANY>{esc_comp}</SVCURRENTCOMPANY>
 </STATICVARIABLES>
 </REQUESTDESC>
 <REQUESTDATA>
 <TALLYMESSAGE xmlns:UDF="TallyUDF">
-<STOCKITEM NAME="{item_name}" ACTION="Create">
-<NAME>{item_name}</NAME>
-<PARENT>{parent_group}</PARENT>
-<BASEUNITS>{uom}</BASEUNITS>
+<STOCKITEM NAME="{esc_name}" ACTION="Create">
+<NAME>{esc_name}</NAME>
+{parent_tag}
+<BASEUNITS>{esc_uom}</BASEUNITS>
 </STOCKITEM>
 </TALLYMESSAGE>
 </REQUESTDATA>
@@ -498,6 +512,30 @@ class TallyClient:
         if "<CREATED>1</CREATED>" in resp or "<ALTERED>1</ALTERED>" in resp or "<ERRORS>0</ERRORS>" in resp:
             return True, f"Stock Item '{item_name}' created in Tally."
         return False, f"Tally rejected stock item creation: {resp[:200]}"
+
+    async def ensure_ledger(self, company_name: str, ledger_name: str, parent_group: str = "Sundry Debtors") -> bool:
+        """Checks if ledger exists in Tally, if not creates it automatically under parent_group."""
+        if not ledger_name or not ledger_name.strip():
+            return False
+        clean_name = ledger_name.strip()
+        existing = await self.get_ledgers(company_name)
+        exists = any(s["name"].strip().lower() == clean_name.lower() for s in existing)
+        if not exists:
+            ok, msg = await self.create_ledger(company_name, clean_name, parent_group)
+            return ok
+        return True
+
+    async def ensure_stock_item(self, company_name: str, item_name: str, uom: str = "KG") -> bool:
+        """Checks if stock item exists in Tally, if not creates it automatically under Primary."""
+        if not item_name or not item_name.strip():
+            return False
+        clean_name = item_name.strip()
+        existing = await self.get_stock_items(company_name)
+        exists = any(s["name"].strip().lower() == clean_name.lower() for s in existing)
+        if not exists:
+            ok, msg = await self.create_stock_item(company_name, clean_name, "Primary", uom)
+            return ok
+        return True
 
     def build_non_gst_voucher_xml(
         self,
@@ -549,15 +587,20 @@ class TallyClient:
             billed_qty_str = f"{qty:.2f} {unit}"
             inv_deemed = "No" if is_sales else "Yes"
 
+            esc_it_name = escape_xml(item_name)
+            esc_spl = escape_xml(sales_purchase_ledger)
+            esc_rate = escape_xml(rate_str)
+            esc_bqty = escape_xml(billed_qty_str)
+
             inv_xml = f"""<ALLINVENTORYENTRIES.LIST>
-<STOCKITEMNAME>{item_name}</STOCKITEMNAME>
+<STOCKITEMNAME>{esc_it_name}</STOCKITEMNAME>
 <ISDEEMEDPOSITIVE>{inv_deemed}</ISDEEMEDPOSITIVE>
-<RATE>{rate_str}</RATE>
-<ACTUALQTY>{billed_qty_str}</ACTUALQTY>
-<BILLEDQTY>{billed_qty_str}</BILLEDQTY>
+<RATE>{esc_rate}</RATE>
+<ACTUALQTY>{esc_bqty}</ACTUALQTY>
+<BILLEDQTY>{esc_bqty}</BILLEDQTY>
 <AMOUNT>{inv_amt_signed}</AMOUNT>
 <ACCOUNTINGALLOCATIONS.LIST>
-<LEDGERNAME>{sales_purchase_ledger}</LEDGERNAME>
+<LEDGERNAME>{esc_spl}</LEDGERNAME>
 <ISDEEMEDPOSITIVE>{inv_deemed}</ISDEEMEDPOSITIVE>
 <AMOUNT>{inv_amt_signed}</AMOUNT>
 </ACCOUNTINGALLOCATIONS.LIST>
@@ -575,8 +618,9 @@ class TallyClient:
         if effective_addl > 0:
             addl_amt_signed = f"{effective_addl:.2f}" if is_sales else f"-{effective_addl:.2f}"
             addl_deemed = "No" if is_sales else "Yes"
+            esc_addl = escape_xml(additional_charges_ledger or "Hamali Expenses")
             addl_ledger_blocks.append(f"""<LEDGERENTRIES.LIST>
-<LEDGERNAME>{additional_charges_ledger or "Hamali Expenses"}</LEDGERNAME>
+<LEDGERNAME>{esc_addl}</LEDGERNAME>
 <ISDEEMEDPOSITIVE>{addl_deemed}</ISDEEMEDPOSITIVE>
 <AMOUNT>{addl_amt_signed}</AMOUNT>
 </LEDGERENTRIES.LIST>""")
@@ -584,8 +628,9 @@ class TallyClient:
         if effective_disc > 0:
             disc_amt_signed = f"-{effective_disc:.2f}" if is_sales else f"{effective_disc:.2f}"
             disc_deemed = "Yes" if is_sales else "No"
+            esc_disc = escape_xml(discount_ledger or "Discount")
             addl_ledger_blocks.append(f"""<LEDGERENTRIES.LIST>
-<LEDGERNAME>{discount_ledger or "Discount"}</LEDGERNAME>
+<LEDGERNAME>{esc_disc}</LEDGERNAME>
 <ISDEEMEDPOSITIVE>{disc_deemed}</ISDEEMEDPOSITIVE>
 <AMOUNT>{disc_amt_signed}</AMOUNT>
 </LEDGERENTRIES.LIST>""")
@@ -620,7 +665,11 @@ class TallyClient:
         party_amt_signed = f"-{party_balance:.2f}" if is_sales else f"{party_balance:.2f}"
         party_deemed_positive = "Yes" if is_sales else "No"
 
-        current_comp_xml = f"<SVCURRENTCOMPANY>{company_name}</SVCURRENTCOMPANY>" if company_name else ""
+        esc_comp = escape_xml(company_name) if company_name else ""
+        current_comp_xml = f"<SVCURRENTCOMPANY>{esc_comp}</SVCURRENTCOMPANY>" if company_name else ""
+        esc_party = escape_xml(party_ledger)
+        esc_inv = escape_xml(invoice_number)
+        esc_narr = escape_xml(narration)
 
         envelope = f"""<ENVELOPE>
 <HEADER>
@@ -639,13 +688,13 @@ class TallyClient:
 <VOUCHER VCHTYPE="{vch_type_str}" ACTION="Create" OBJVIEW="Invoice Voucher View">
 <DATE>{invoice_date_tally}</DATE>
 <VOUCHERTYPENAME>{vch_type_str}</VOUCHERTYPENAME>
-<REFERENCE>{invoice_number}</REFERENCE>
-<VOUCHERNUMBER>{invoice_number}</VOUCHERNUMBER>
-<PARTYLEDGERNAME>{party_ledger}</PARTYLEDGERNAME>
-<NARRATION>{narration}</NARRATION>
+<REFERENCE>{esc_inv}</REFERENCE>
+<VOUCHERNUMBER>{esc_inv}</VOUCHERNUMBER>
+<PARTYLEDGERNAME>{esc_party}</PARTYLEDGERNAME>
+<NARRATION>{esc_narr}</NARRATION>
 <PERSISTEDVIEW>Invoice Voucher View</PERSISTEDVIEW>
 <LEDGERENTRIES.LIST>
-<LEDGERNAME>{party_ledger}</LEDGERNAME>
+<LEDGERNAME>{esc_party}</LEDGERNAME>
 <ISDEEMEDPOSITIVE>{party_deemed_positive}</ISDEEMEDPOSITIVE>
 <AMOUNT>{party_amt_signed}</AMOUNT>
 </LEDGERENTRIES.LIST>
@@ -657,6 +706,7 @@ class TallyClient:
 </IMPORTDATA>
 </BODY>
 </ENVELOPE>"""
+        return envelope
         return envelope
         return envelope
 
@@ -674,13 +724,23 @@ class TallyClient:
             # Check for standard Tally import counters
             created_elem = root.find(".//CREATED")
             errors_elem = root.find(".//ERRORS")
+            exceptions_elem = root.find(".//EXCEPTIONS")
             created_count = int(created_elem.text) if created_elem is not None and created_elem.text else 0
             errors_count = int(errors_elem.text) if errors_elem is not None and errors_elem.text else 0
+            exceptions_count = int(exceptions_elem.text) if exceptions_elem is not None and exceptions_elem.text else 0
             
             # Find line errors if any
             line_errors = [err.text.strip() for err in root.iter("LINEERROR") if err.text]
 
-            if created_count > 0 and errors_count == 0:
+            # Check if root has response message (e.g. <RESPONSE>Unknown Request, cannot be processed</RESPONSE>)
+            resp_tag_text = root.text.strip() if root.text and root.text.strip() else ""
+            if not line_errors and resp_tag_text:
+                line_errors.append(resp_tag_text)
+            for r_child in root.iter("RESPONSE"):
+                if r_child.text and r_child.text.strip() and r_child.text.strip() not in line_errors:
+                    line_errors.append(r_child.text.strip())
+
+            if created_count > 0 and errors_count == 0 and exceptions_count == 0:
                 # Retrieve voucher number or guid if available
                 vch_num = root.findtext(".//LASTVCHNUM")
                 return True, {
@@ -690,11 +750,17 @@ class TallyClient:
                     "raw_response": resp
                 }
             else:
-                error_msg = "; ".join(line_errors) if line_errors else f"Tally rejected voucher (Errors: {errors_count})"
+                if line_errors:
+                    error_msg = "; ".join(line_errors)
+                elif exceptions_count > 0:
+                    error_msg = f"Tally rejected voucher due to accounting balance or master mismatch (Exceptions: {exceptions_count})"
+                else:
+                    error_msg = f"Tally rejected voucher (Errors: {errors_count})"
                 return False, {
                     "success": False,
                     "error": error_msg,
                     "errors_count": errors_count,
+                    "exceptions_count": exceptions_count,
                     "line_errors": line_errors,
                     "raw_response": resp
                 }
