@@ -1,6 +1,22 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { VoucherPreview, VoucherItemLine, TallyMastersData } from '../../types';
-import { X, CheckCircle, Loader2, ArrowRight, UserPlus, RefreshCw, Layers, Edit3, Trash2, Plus } from 'lucide-react';
+import {
+  X,
+  CheckCircle,
+  Loader2,
+  ArrowRight,
+  UserPlus,
+  RefreshCw,
+  Layers,
+  Edit3,
+  Trash2,
+  Plus,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  ExternalLink,
+  Image as ImageIcon,
+} from 'lucide-react';
 import { api } from '../../services/api';
 import { SearchableSelect, SelectOption } from '../common/SearchableSelect';
 
@@ -64,16 +80,34 @@ function computeBestMatch(
 
 interface VoucherPreviewModalProps {
   voucher: VoucherPreview;
+  billFilePath?: string;
   onClose: () => void;
   onSuccessPost: () => void;
 }
 
 export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
   voucher,
+  billFilePath,
   onClose,
   onSuccessPost,
 }) => {
   const [currentVoucher, setCurrentVoucher] = useState<VoucherPreview>(voucher);
+  const [zoom, setZoom] = useState<number>(1);
+  const [rotation, setRotation] = useState<number>(0);
+
+  const photoFilePath = currentVoucher.file_path || billFilePath;
+  const photoUrl = useMemo(() => {
+    if (!photoFilePath) return '';
+    const clean = photoFilePath.replace(/\\/g, '/');
+    const idx = clean.indexOf('uploads/');
+    const rel = idx >= 0 ? clean.substring(idx) : clean;
+    return `http://localhost:8000/${rel}`;
+  }, [photoFilePath]);
+
+  const handleZoomIn = () => setZoom((z) => Math.min(z + 0.25, 3));
+  const handleZoomOut = () => setZoom((z) => Math.max(z - 0.25, 0.5));
+  const handleResetZoom = () => { setZoom(1); setRotation(0); };
+  const handleRotate = () => setRotation((r) => (r + 90) % 360);
   const [masters, setMasters] = useState<TallyMastersData | null>(null);
   const [isLoadingMasters, setIsLoadingMasters] = useState(false);
   const [isSyncingMasters, setIsSyncingMasters] = useState(false);
@@ -579,8 +613,8 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+      <div className="bg-white rounded-2xl w-full max-w-[96vw] xl:max-w-7xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-[94vh]">
         {/* Header */}
         <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
           <div>
@@ -601,7 +635,7 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
         </div>
 
         {/* Sync Masters Notification Sub-Header */}
-        <div className="bg-slate-100 border-b border-slate-200 px-5 py-2.5 flex items-center justify-between text-xs text-slate-600">
+        <div className="bg-slate-100 border-b border-slate-200 px-5 py-2.5 flex items-center justify-between text-xs text-slate-600 shrink-0">
           <div className="flex items-center gap-2 truncate pr-2">
             <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
             <span className="truncate">
@@ -622,8 +656,96 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto text-slate-800 text-xs sm:text-sm">
+        {/* Main Split Body: Left 50% Photo, Right 50% Editable Voucher Form */}
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+          {/* Left Side: Original Scanned Bill Photo */}
+          <div className="md:w-1/2 flex flex-col bg-slate-900 border-r border-slate-800 min-h-0 text-white">
+            <div className="p-3 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between text-xs shrink-0">
+              <div className="flex items-center gap-2 truncate pr-2">
+                <ImageIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="font-bold text-slate-200 truncate">Original Scanned Bill</span>
+                <span className="text-[11px] text-slate-400 font-mono shrink-0">#{currentVoucher.invoice_number}</span>
+              </div>
+              {photoUrl && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleZoomOut}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetZoom}
+                    className="px-2 py-1 text-[11px] font-mono rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                    title="Reset Zoom"
+                  >
+                    {Math.round(zoom * 100)}%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleZoomIn}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRotate}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                    title="Rotate 90°"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                  </button>
+                  <a
+                    href={photoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                    title="Open full image in new tab"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Photo Display Viewport */}
+            <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-950 min-h-0 relative select-none">
+              {photoUrl ? (
+                <div
+                  className="transition-transform duration-150 inline-block m-auto"
+                  style={{
+                    transform: `scale(${zoom}) rotate(${rotation}deg)`,
+                    transformOrigin: 'center center',
+                  }}
+                >
+                  <img
+                    src={photoUrl}
+                    alt="Original Bill"
+                    className="max-h-[75vh] w-auto max-w-full object-contain rounded shadow-2xl border border-slate-800"
+                  />
+                </div>
+              ) : (
+                <div className="text-center text-slate-500 text-xs p-8">
+                  <ImageIcon className="w-10 h-10 mx-auto text-slate-600 mb-2" />
+                  <p>No bill image preview available.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Photo Bottom Hint */}
+            <div className="p-2.5 bg-slate-950/90 border-t border-slate-800/80 text-[11px] text-slate-400 text-center shrink-0">
+              Tip: Zoom in to inspect handwritten rates, amounts, stamps, and weight slips.
+            </div>
+          </div>
+
+          {/* Right Side: Verification, Editing & Mapping Form */}
+          <div className="md:w-1/2 flex flex-col overflow-hidden min-h-0 bg-white">
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto text-slate-800 text-xs sm:text-sm flex-1">
           {syncNotice && (
             <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-900 text-xs flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1076,5 +1198,7 @@ export const VoucherPreviewModal: React.FC<VoucherPreviewModalProps> = ({
         </div>
       </div>
     </div>
+  </div>
+</div>
   );
 };

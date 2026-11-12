@@ -36,6 +36,7 @@ class VoucherPreviewResponse(BaseModel):
     suggested_party_ledger: Optional[str] = None
     party_match_confidence: Optional[float] = None
     is_party_matched: bool = False
+    file_path: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class VoucherApprovalRequest(BaseModel):

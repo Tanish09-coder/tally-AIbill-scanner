@@ -227,7 +227,8 @@ async def get_or_create_voucher_preview(bill_id: int, db: AsyncSession = Depends
             created_at=vp.created_at,
             suggested_party_ledger=sugg_party,
             party_match_confidence=conf,
-            is_party_matched=is_match
+            is_party_matched=is_match,
+            file_path=bill.file_path
         )
 
     # Build new preview
@@ -281,7 +282,8 @@ async def get_or_create_voucher_preview(bill_id: int, db: AsyncSession = Depends
         created_at=new_vp.created_at,
         suggested_party_ledger=sugg_party,
         party_match_confidence=conf,
-        is_party_matched=is_match
+        is_party_matched=is_match,
+        file_path=bill.file_path
     )
 
 @router.put("/{voucher_id}", response_model=VoucherPreviewResponse)
@@ -375,7 +377,8 @@ async def update_voucher_preview(
         created_at=vp.created_at,
         suggested_party_ledger=sugg_party,
         party_match_confidence=conf,
-        is_party_matched=is_match
+        is_party_matched=is_match,
+        file_path=bill.file_path
     )
 
 @router.post("/{voucher_id}/approve-and-post")

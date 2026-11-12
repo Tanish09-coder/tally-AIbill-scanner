@@ -131,7 +131,7 @@ export const App: React.FC = () => {
   const handleOpenVoucher = async (bill: Bill) => {
     try {
       const preview = await api.getVoucherPreview(bill.id);
-      setActiveVoucher(preview);
+      setActiveVoucher({ ...preview, file_path: bill.file_path || preview.file_path });
     } catch (err) {
       console.error('Failed to load voucher preview:', err);
     }
@@ -238,6 +238,7 @@ export const App: React.FC = () => {
       {activeVoucher && (
         <VoucherPreviewModal
           voucher={activeVoucher}
+          billFilePath={activeVoucher.file_path}
           onClose={() => setActiveVoucher(null)}
           onSuccessPost={() => {
             loadBills();

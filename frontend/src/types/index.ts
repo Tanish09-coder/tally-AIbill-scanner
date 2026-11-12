@@ -93,6 +93,7 @@ export interface VoucherPreview {
   suggested_party_ledger?: string;
   party_match_confidence?: number;
   is_party_matched?: boolean;
+  file_path?: string;
 }
 
 export interface PartyMapping {
