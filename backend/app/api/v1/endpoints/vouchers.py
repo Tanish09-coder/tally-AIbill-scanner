@@ -283,7 +283,7 @@ async def get_or_create_voucher_preview(bill_id: int, db: AsyncSession = Depends
         suggested_party_ledger=sugg_party,
         party_match_confidence=conf,
         is_party_matched=is_match,
-        file_path=bill.file_path
+        file_path=bill.file_path if bill else None
     )
 
 @router.put("/{voucher_id}", response_model=VoucherPreviewResponse)
@@ -306,12 +306,13 @@ async def update_voucher_preview(
             detail="Cannot modify a voucher that has already been approved and posted to Tally."
         )
 
+    bill_obj = await db.get(Bill, vp.bill_id)
+
     if payload.party_ledger is not None:
         new_party = payload.party_ledger.strip()
         vp.party_ledger = new_party
         
         # Auto-learn mapping if user selected a different master for bill's original party
-        bill_obj = await db.get(Bill, vp.bill_id)
         if bill_obj and bill_obj.party_name:
             raw_orig = bill_obj.party_name.strip()
             if raw_orig.lower() != new_party.lower():
@@ -378,7 +379,7 @@ async def update_voucher_preview(
         suggested_party_ledger=sugg_party,
         party_match_confidence=conf,
         is_party_matched=is_match,
-        file_path=bill.file_path
+        file_path=bill_obj.file_path if bill_obj else None
     )
 
 @router.post("/{voucher_id}/approve-and-post")
