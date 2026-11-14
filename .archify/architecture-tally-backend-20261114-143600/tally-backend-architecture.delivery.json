@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "5f7c31ea-a216-41cb-8999-16f027eee3ac",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "C:\\Users\\A J\\OneDrive\\Desktop\\TALLY\\.archify\\architecture-tally-backend-20261114-143600\\candidate.json",
+  "output": "C:\\Users\\A J\\OneDrive\\Desktop\\TALLY\\.archify\\architecture-tally-backend-20261114-143600\\tally-backend-architecture.html",
+  "specification": {
+    "sha256": "ce10a1b4750d9d7d46dedff2785bbf12b8c2e3ba56813e6f51c3d0835e697276",
+    "bytes": 6023
+  },
+  "artifact": {
+    "sha256": "065cb1ab5e6fcb79dd51493c0f71ad798f2f9206f2e64804bb70c61ae48a8dcf",
+    "bytes": 851533
+  }
+}

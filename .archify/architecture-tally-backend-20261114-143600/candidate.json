@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Tally AI Bill Scanner & TallyPrime Automation Architecture",
+    "subtitle": "End-to-End Pipeline: Multilingual OCR, Accounting Balancing & TallyPrime XML Sync",
+    "output": "tally-backend-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "gemini_vision",
+      "type": "cloud",
+      "label": "Gemini 3.1 Flash",
+      "sublabel": "Multimodal Vision AI",
+      "tag": "Marathi ०-९ & Mandi OCR",
+      "pos": [460, 20],
+      "size": [170, 70]
+    },
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "React Web App",
+      "sublabel": "Vite + Tailwind :5173",
+      "tag": "50/50 Split Preview",
+      "pos": [40, 240],
+      "size": [150, 70]
+    },
+    {
+      "id": "api_gateway",
+      "type": "backend",
+      "label": "FastAPI Core",
+      "sublabel": "Uvicorn ASGI :8000",
+      "tag": "Router & CORS",
+      "pos": [250, 240],
+      "size": [150, 70]
+    },
+    {
+      "id": "bill_endpoint",
+      "type": "backend",
+      "label": "Bills API",
+      "sublabel": "Upload & Status",
+      "tag": "Scan Orchestrator",
+      "pos": [460, 160],
+      "size": [150, 70]
+    },
+    {
+      "id": "voucher_endpoint",
+      "type": "backend",
+      "label": "Vouchers API",
+      "sublabel": "Preview & Approval",
+      "tag": "Live Inline Editor",
+      "pos": [460, 320],
+      "size": [150, 70]
+    },
+    {
+      "id": "accounting_engine",
+      "type": "backend",
+      "label": "Accounting Engine",
+      "sublabel": "Double-Entry Balance",
+      "tag": "Debit == Credit == Total",
+      "pos": [710, 320],
+      "size": [160, 70]
+    },
+    {
+      "id": "xml_builder",
+      "type": "backend",
+      "label": "XML Generator",
+      "sublabel": "Tally XML & Escaping",
+      "tag": "&amp; Safe + Dynamic Masters",
+      "pos": [970, 320],
+      "size": [160, 70]
+    },
+    {
+      "id": "tally_client",
+      "type": "backend",
+      "label": "Tally Client",
+      "sublabel": "Async HTTP Connector",
+      "tag": "Auto-Create Stock/Ledger",
+      "pos": [1230, 320],
+      "size": [160, 70]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "SQLite Database",
+      "sublabel": "SQLAlchemy Async",
+      "tag": "Bills, Vouchers, Logs",
+      "pos": [460, 480],
+      "size": [150, 70]
+    },
+    {
+      "id": "tally_prime",
+      "type": "external",
+      "label": "TallyPrime ERP",
+      "sublabel": "Local XML Server :9000",
+      "tag": "KISHOR SURENDRA GOTHI",
+      "pos": [1510, 320],
+      "size": [170, 70]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "FastAPI Core Application Services",
+      "wraps": ["api_gateway", "bill_endpoint", "voucher_endpoint", "accounting_engine", "xml_builder", "tally_client"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-ui-api",
+      "from": "ui",
+      "to": "api_gateway",
+      "label": "REST API / JSON",
+      "variant": "emphasis"
+    },
+    {
+      "id": "conn-api-bills",
+      "from": "api_gateway",
+      "to": "bill_endpoint",
+      "label": "POST /bills"
+    },
+    {
+      "id": "conn-api-vouchers",
+      "from": "api_gateway",
+      "to": "voucher_endpoint",
+      "label": "PUT/POST /vouchers"
+    },
+    {
+      "id": "conn-bills-gemini",
+      "from": "bill_endpoint",
+      "to": "gemini_vision",
+      "label": "Bill Image + Prompt",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "conn-vouchers-db",
+      "from": "voucher_endpoint",
+      "to": "db",
+      "label": "Persist State & Edits",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "conn-vouchers-acct",
+      "from": "voucher_endpoint",
+      "to": "accounting_engine",
+      "label": "Verify Balance",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "conn-acct-xml",
+      "from": "accounting_engine",
+      "to": "xml_builder",
+      "label": "Balanced Entries",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "conn-xml-client",
+      "from": "xml_builder",
+      "to": "tally_client",
+      "label": "Escaped Payload",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "conn-client-tally",
+      "from": "tally_client",
+      "to": "tally_prime",
+      "label": "HTTP POST XML :9000",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "conn-tally-client",
+      "from": "tally_prime",
+      "to": "tally_client",
+      "label": "Voucher Response",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "via": [[1595, 430], [1310, 430]]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "AI Multilingual Extraction",
+      "items": [
+        "Gemini 3.1 Flash Lite processes bill photos & PDFs",
+        "Translates Marathi/Devanagari numerals (०-९) to digits (0-9)",
+        "Extracts Mandi tables, Hamali, commission, & line items",
+        "Normalizes commodities to master list (RICE, GAHU, etc.)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Double-Entry Accounting & XML Engine",
+      "items": [
+        "Enforces mathematical balance: Debits == Credits == Final Amount",
+        "Handles Hamali Expenses, Discount, & Round-Off automatically",
+        "XML escaping (&amp;, &lt;, &gt;) prevents parser crashes on party names",
+        "Auto-creates missing stock items & ledgers in Tally before posting"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Side-by-Side Review & 1-Click Tally Sync",
+      "items": [
+        "50/50 split modal: zoom/rotate original photo on left, live editor on right",
+        "Real-time table recalculation (Amount = Qty * Rate)",
+        "Direct socket posting to TallyPrime local XML interface on port 9000",
+        "Full audit logging and transaction records in SQLite database"
+      ]
+    }
+  ]
+}
