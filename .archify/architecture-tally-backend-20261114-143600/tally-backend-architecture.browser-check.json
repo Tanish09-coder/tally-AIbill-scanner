@@ -6,11 +6,11 @@
   "status": "pass",
   "visualReview": "not-requested",
   "provenance": "current",
-  "deliveryReceiptId": "5f7c31ea-a216-41cb-8999-16f027eee3ac",
+  "deliveryReceiptId": "aa0f5a19-355d-488d-bf01-222f591c662e",
   "artifact": {
     "path": "C:\\Users\\A J\\OneDrive\\Desktop\\TALLY\\.archify\\architecture-tally-backend-20261114-143600\\tally-backend-architecture.html",
-    "sha256": "065cb1ab5e6fcb79dd51493c0f71ad798f2f9206f2e64804bb70c61ae48a8dcf",
-    "bytes": 851533
+    "sha256": "431035b296d276142a157f975a0cb2c0622892b37f65e91c9b955b58e905c40b",
+    "bytes": 851679
   },
   "state": {
     "detail": "read",

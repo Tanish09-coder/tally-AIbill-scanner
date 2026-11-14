@@ -7,13 +7,13 @@
   "quality": "showcase",
   "specification": {
     "path": "C:\\Users\\A J\\OneDrive\\Desktop\\TALLY\\.archify\\architecture-tally-backend-20261114-143600\\candidate.json",
-    "sha256": "ce10a1b4750d9d7d46dedff2785bbf12b8c2e3ba56813e6f51c3d0835e697276",
-    "bytes": 6023
+    "sha256": "3dd1471c9bf9eef99a3479ee17ac9bb976ecc048ec530d26734f9443defc82ab",
+    "bytes": 6109
   },
   "artifact": {
     "path": "C:\\Users\\A J\\OneDrive\\Desktop\\TALLY\\.archify\\architecture-tally-backend-20261114-143600\\tally-backend-architecture.html",
-    "sha256": "065cb1ab5e6fcb79dd51493c0f71ad798f2f9206f2e64804bb70c61ae48a8dcf",
-    "bytes": 851533
+    "sha256": "431035b296d276142a157f975a0cb2c0622892b37f65e91c9b955b58e905c40b",
+    "bytes": 851679
   },
   "gates": {
     "validate": "pass",
@@ -43,7 +43,7 @@
     "noticeText": null
   },
   "visualReview": "not-requested",
-  "durationMs": 25349,
+  "durationMs": 11619,
   "browserCheck": {
     "requested": true,
     "ran": true

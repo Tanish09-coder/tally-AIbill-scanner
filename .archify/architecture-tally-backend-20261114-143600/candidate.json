@@ -3,7 +3,7 @@
   "diagram_type": "architecture",
   "meta": {
     "title": "Tally AI Bill Scanner & TallyPrime Automation Architecture",
-    "subtitle": "End-to-End Pipeline: Multilingual OCR, Accounting Balancing & TallyPrime XML Sync",
+    "subtitle": "End-to-End Pipeline: 4-Key AI Vision Pool, Accounting Balancing & TallyPrime XML Sync",
     "output": "tally-backend-architecture.html",
     "quality_profile": "showcase"
   },
@@ -11,11 +11,11 @@
     {
       "id": "gemini_vision",
       "type": "cloud",
-      "label": "Gemini 3.1 Flash",
-      "sublabel": "Multimodal Vision AI",
-      "tag": "Marathi ०-९ & Mandi OCR",
+      "label": "AI Vision Pool (4 Keys)",
+      "sublabel": "3x Gemini + 1x Groq Llama",
+      "tag": "Auto-Rotation & Failover",
       "pos": [460, 20],
-      "size": [170, 70]
+      "size": [180, 70]
     },
     {
       "id": "ui",
@@ -130,7 +130,7 @@
       "id": "conn-bills-gemini",
       "from": "bill_endpoint",
       "to": "gemini_vision",
-      "label": "Bill Image + Prompt",
+      "label": "4-Key Rotated Scan",
       "variant": "emphasis",
       "fromSide": "top",
       "toSide": "bottom"
@@ -191,12 +191,14 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "AI Multilingual Extraction",
+      "title": "4-Key AI Vision Pool & OCR",
       "items": [
-        "Gemini 3.1 Flash Lite processes bill photos & PDFs",
-        "Translates Marathi/Devanagari numerals (०-९) to digits (0-9)",
-        "Extracts Mandi tables, Hamali, commission, & line items",
-        "Normalizes commodities to master list (RICE, GAHU, etc.)"
+        "Key 1 (Gemini Primary): AIzaSyBTojmt...",
+        "Key 2 (Gemini Secondary): AQ.Ab8RN6Ij5...",
+        "Key 3 (Gemini Tertiary): AQ.Ab8RN6KwXq...",
+        "Key 4 (Groq Llama-3.2 Vision): gsk_vqNtpeuz...",
+        "Auto-rotation across keys avoids rate limits & quotas",
+        "Translates Marathi/Devanagari numerals (०-९) to 0-9"
       ]
     },
     {
