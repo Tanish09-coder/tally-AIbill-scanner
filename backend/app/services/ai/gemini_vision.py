@@ -25,6 +25,39 @@ DATE & INVOICE NUMBER EXTRACTION (CRITICAL):
 - "invoice_date": Thoroughly inspect the bill header, corners, rubber stamps, handwritten margin notes, or date fields (labelled as दिनांक, Date, Dt, तारीख, or standalone DD/MM/YYYY or DD/MM/YY e.g. 15/04/2025, 12-5-25, etc.). Always convert and format as DD-MM-YYYY (e.g., "15-04-2025"). Never leave null if any date is printed, written or stamped on the bill!
 - "invoice_number": Look for bill no., memo no., पावती क्र., बिल क्र., or inv no.
 
+MARATHI & DEVANAGARI NUMERALS CONVERSION (ESSENTIAL FOR HANDWRITTEN BILLS):
+- Many handwritten bills, Mandi parchas, and sales bill books in Maharashtra use Marathi/Devanagari numerals for quantities, rates, and amounts.
+- You MUST recognize Devanagari digits and translate them directly into standard Western Arabic numbers:
+  * ० -> 0
+  * १ -> 1
+  * २ -> 2
+  * ३ -> 3
+  * ४ -> 4
+  * ५ -> 5
+  * ६ -> 6
+  * ७ -> 7
+  * ८ -> 8
+  * ९ -> 9
+- Examples of Devanagari handwritten number translation:
+  * संख्या "१५०" or "१५० कट्टे" -> quantity: 150.0
+  * संख्या "१७०" -> quantity: 170.0
+  * संख्या "१३०" -> quantity: 130.0
+  * दर "१५००/-" or "१५००" -> rate: 1500.0
+  * दर "८५००/-" -> rate: 8500.0
+  * रक्कम "२२५००|००" or "२२५००।००" -> amount: 22500.0
+  * रक्कम "१२६००|००" -> amount: 12600.0
+  * रक्कम "१०२००|००" -> amount: 10200.0
+  * एकूण / बाकी "४५३००|००" -> final_amount: 45300.0
+  * हमाली "१०/-" or "१०" -> additional_charges: 10.0
+- Mandi Table Columns & Notation:
+  * In handwritten tables with "संख्या" (quantity), "दर" (rate), and "रक्कम / रुपये / पैसे" (amount):
+    - The vertical pipe or danda `|` or `।` separates Rupees and Paise (e.g., `२२५०० | ००` means 22500.00).
+    - A trailing slash-dash `/-` represents exact rupees (e.g. `१५००/-` = 1500).
+    - "एकूण येणे बाकी", "एकूण बाकी", or "एकूण" indicates the final bill total ("final_amount").
+    - If there are additions like "हमाली" or deductions like "कमिशन / सूट", map them to "additional_charges" or "discount".
+- Photo Orientation & Sideways Bills:
+  * If the bill was photographed horizontally / 90° sideways, rotate and read the headers, columns, and rows upright so you never confuse rows or misread handwritten digits.
+
 PARTY & INVOICE ROLES (VERY IMPORTANT):
 - "seller_name": The business name / supplier printed prominently at the top header or letterhead who issued the bill (e.g., "HARSH INDUSTRIES").
 - "buyer_name": The client / customer named under "To, ", "M/s", "Buyer:", "Consignee:", or delivery address (e.g., "KISHOR SURENDRA GOTHI").
